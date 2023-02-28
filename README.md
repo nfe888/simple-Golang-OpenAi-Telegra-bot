@@ -1,4 +1,4 @@
-# simple-golang-openAi-Telegram-bot
+# simple-golang-openAi-telegram-bot
 
 Step 1:
 

@@ -1,0 +1,9 @@
+version: '3'
+services:
+  telegram-bot:
+    build: .
+    environment:
+      - telegramBotToken=${telegramBotToken}
+      - openAiToken=${openAiToken}
+    ports:
+      - "8000:8000"

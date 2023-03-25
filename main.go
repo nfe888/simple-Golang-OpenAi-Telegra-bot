@@ -1,21 +1,17 @@
 package main
 
 import (
-	"context"
-	"log"
-	"strconv"
-
-	// "strconv"
 	"bytes"
-	"fmt"
-	"os"
+	"context"
 	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"github.com/gorilla/mux"
 	"github.com/go-redis/redis/v8"
-	"time"
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -60,11 +56,22 @@ type Message struct {
 
 var redisClient *redis.Client
 
+func getMessagesFromRedis(chatID int) []Message {
+	list := redisClient.LRange(ctx, "userHistory:"+strconv.Itoa(chatID), 0, -1)
+	var messages []Message
+	for _, value := range list.Val() {
+		var message Message
+		json.Unmarshal([]byte(value), &message)
+		messages = append(messages, message)
+	}
+	return messages
+}
+
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 
 	var update Update
-	client := &http.Client{}
+
 	json.Unmarshal(body, &update)
 
 	if update.Message.Text == "" {
@@ -75,42 +82,49 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		text = "Welcome, You can start chatting with Haj Jipit."
 	} else {
 
-		var messages []Message
-		list := redisClient.LRange(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), 0, -1)
-		fmt.Printf("olds: %+v\n", list.Val())
-		for _, value := range list.Val() {
-			var oldMessage Message
-			json.Unmarshal( []byte(value), &oldMessage)
-			messages = append(messages, oldMessage)
-		}
+		messages := getMessagesFromRedis(update.Message.Chat.ID)
 		var newMessage = Message{Content: update.Message.Text, Role: "user"}
 		messages = append(messages, newMessage)
-		fmt.Printf("messages: %+v\n", messages)
 
-		openAIReqBody := map[string]interface{}{
-			"model": "gpt-3.5-turbo",
-			"messages": messages,
-		}
-		openAIReqBodyJSON, _ := json.Marshal(openAIReqBody)
-		openAIReq, _ := http.NewRequest("POST", openAIAPI, bytes.NewBuffer(openAIReqBodyJSON))
-		openAIReq.Header.Set("Content-Type", "application/json")
-		openAIReq.Header.Set("Authorization", "Bearer "+openAiToken)
+		openAIResponse := callOpenAiApi(messages)
 
-		openAIResp, _ := client.Do(openAIReq)
-		openAIRespBody, _ := ioutil.ReadAll(openAIResp.Body)
-		defer openAIResp.Body.Close()
-
-		var openAIResponse OpenAiResponse
-		fmt.Println(string(openAIRespBody))
-		json.Unmarshal(openAIRespBody, &openAIResponse)
 		text = openAIResponse.Choices[0].Message.Content
 		messageJson, _ := json.Marshal(newMessage)
 		replyJson, _ := json.Marshal(openAIResponse.Choices[0].Message)
 		redisClient.RPush(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), messageJson, replyJson)
 
 	}
+	sendTelegramMessage(update.Message.Chat.ID, text)
+
+}
+
+func callOpenAiApi(messages []Message) OpenAiResponse {
+	client := &http.Client{}
+
+	openAIReqBody := map[string]interface{}{
+		"model":    "gpt-3.5-turbo",
+		"messages": messages,
+	}
+	openAIReqBodyJSON, _ := json.Marshal(openAIReqBody)
+	openAIReq, _ := http.NewRequest("POST", openAIAPI, bytes.NewBuffer(openAIReqBodyJSON))
+	openAIReq.Header.Set("Content-Type", "application/json")
+	openAIReq.Header.Set("Authorization", "Bearer "+openAiToken)
+
+	openAIResp, _ := client.Do(openAIReq)
+	openAIRespBody, _ := ioutil.ReadAll(openAIResp.Body)
+	defer openAIResp.Body.Close()
+
+	var openAIResponse OpenAiResponse
+	json.Unmarshal(openAIRespBody, &openAIResponse)
+
+	return openAIResponse
+
+}
+
+func sendTelegramMessage(chatID int, text string) {
+	client := &http.Client{}
 	sendMessageReqBody := map[string]interface{}{
-		"chat_id": update.Message.Chat.ID,
+		"chat_id": chatID,
 		"text":    text,
 	}
 	sendMessageReqBodyJSON, _ := json.Marshal(sendMessageReqBody)
@@ -118,7 +132,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	sendMessageReq.Header.Set("Content-Type", "application/json")
 	sendMessageResp, _ := client.Do(sendMessageReq)
 	defer sendMessageResp.Body.Close()
-
 }
 
 func main() {
@@ -136,17 +149,6 @@ func main() {
 		Password: os.Getenv("redisPassword"),
 		DB:       0,
 	})
-
-	for {
-
-		if _, err := redisClient.Ping(ctx).Result(); err == nil {
-			break
-			// log.Fatal(err)
-		}
-		time.Sleep(2 * time.Second)
-
-	}
-	log.Println("after redis ")
 
 	router := mux.NewRouter()
 	router.HandleFunc("/webhook", handleWebhook).Methods("POST")

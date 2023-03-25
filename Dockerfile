@@ -2,9 +2,10 @@ FROM golang:latest
 
 WORKDIR /app
 
+COPY go.* ./
+
+RUN go mod download
 COPY . .
+RUN go build -o srv *.go
 
-RUN go get -d -v ./...
-RUN go install -v ./...
-
-CMD ["go","run","main.go"]
+CMD ["./srv"]

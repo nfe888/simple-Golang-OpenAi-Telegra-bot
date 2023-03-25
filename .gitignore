@@ -1,0 +1,7 @@
+ .env
+.idea/misc.xml
+.idea/modules.xml
+.idea/simple-golang-openAi-telegram-bot.iml
+.idea/workspace.xml
+data/
+

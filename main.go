@@ -88,10 +88,15 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 		openAIResponse := callOpenAiApi(messages)
 
-		text = openAIResponse.Choices[0].Message.Content
-		messageJson, _ := json.Marshal(newMessage)
-		replyJson, _ := json.Marshal(openAIResponse.Choices[0].Message)
-		redisClient.RPush(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), messageJson, replyJson)
+		if len(openAIResponse.Choices)>0 {
+			text = openAIResponse.Choices[0].Message.Content
+			messageJson, _ := json.Marshal(newMessage)
+			replyJson, _ := json.Marshal(openAIResponse.Choices[0].Message)
+			redisClient.RPush(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), messageJson, replyJson)
+		}else{
+			text = "there was a problem processing your message"
+		}
+
 
 	}
 	sendTelegramMessage(update.Message.Chat.ID, text)

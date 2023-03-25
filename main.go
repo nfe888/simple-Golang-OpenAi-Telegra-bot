@@ -112,7 +112,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	sendMessageReqBody := map[string]interface{}{
 		"chat_id": update.Message.Chat.ID,
 		"text":    text,
-		""
 	}
 	sendMessageReqBodyJSON, _ := json.Marshal(sendMessageReqBody)
 	sendMessageReq, _ := http.NewRequest("POST", "https://api.telegram.org/bot"+telegramBotToken+"/sendMessage", bytes.NewBuffer(sendMessageReqBodyJSON))

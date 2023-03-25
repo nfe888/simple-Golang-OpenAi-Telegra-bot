@@ -120,7 +120,6 @@ func callOpenAiApi(messages []Message) OpenAiResponse {
 	openAIRespBody, _ := ioutil.ReadAll(openAIResp.Body)
 	defer openAIResp.Body.Close()
     log.Printf("openAi response %+v",string(openAIRespBody))
-	fmt.Printf("%+v\n", gameCreated)
 
 	var openAIResponse OpenAiResponse
 	json.Unmarshal(openAIRespBody, &openAIResponse)

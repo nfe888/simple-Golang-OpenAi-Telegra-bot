@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -118,6 +119,8 @@ func callOpenAiApi(messages []Message) OpenAiResponse {
 	openAIResp, _ := client.Do(openAIReq)
 	openAIRespBody, _ := ioutil.ReadAll(openAIResp.Body)
 	defer openAIResp.Body.Close()
+    log.Printf("openAi response %+v",string(openAIRespBody))
+	fmt.Printf("%+v\n", gameCreated)
 
 	var openAIResponse OpenAiResponse
 	json.Unmarshal(openAIRespBody, &openAIResponse)

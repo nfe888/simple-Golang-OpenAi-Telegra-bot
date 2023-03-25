@@ -80,6 +80,9 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	text := ""
 	if strings.ToUpper(update.Message.Text) == "/START" {
 		text = "Welcome, You can start chatting with Haj Jipit."
+	}else if strings.ToUpper(update.Message.Text) == "/CLEAR" {
+		redisClient.Del(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID))
+		text = "Conversation cleared."
 	} else {
 
 		messages := getMessagesFromRedis(update.Message.Chat.ID)
@@ -94,7 +97,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 			replyJson, _ := json.Marshal(openAIResponse.Choices[0].Message)
 			redisClient.RPush(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), messageJson, replyJson)
 		}else{
-			text = "there was a problem processing your message"
+			text = "There was a problem processing your message. Maybe it's because of number of tokens. Try to /CLEAR your conversation history."
 		}
 
 

@@ -77,7 +77,7 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/webhook", handleWebhook).Methods("POST")
 
-	http.ListenAndServe(":8000", router)
+	http.ListenAndServe(":"+os.Getenv("golangPort"), router)
 }
 
 func setTelegramWebhook() {

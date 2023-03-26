@@ -15,7 +15,7 @@ services:
     command: redis-server --appendfsync everysec --appendonly yes --requirepass ${redisPassword}
     restart: on-failure
     ports:
-    - "${remotRedisPort}:6379"
+    - "${remoteRedisPort}:6379"
     volumes:
     - ./data/redis/:/data
     networks:

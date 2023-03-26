@@ -56,15 +56,44 @@ type Message struct {
 
 var redisClient *redis.Client
 
-func getMessagesFromRedis(chatID int) []Message {
-	list := redisClient.LRange(ctx, "userHistory:"+strconv.Itoa(chatID), 0, -1)
-	var messages []Message
-	for _, value := range list.Val() {
-		var message Message
-		json.Unmarshal([]byte(value), &message)
-		messages = append(messages, message)
+func main() {
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Some error occured on reading . env file. Err: %s", err)
 	}
-	return messages
+
+	openAiToken = os.Getenv("openAiToken")
+	telegramBotToken = os.Getenv("telegramBotToken")
+
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     "redis:6379",
+		Password: os.Getenv("redisPassword"),
+		DB:       0,
+	})
+
+	setTelegramWebhook()
+
+	router := mux.NewRouter()
+	router.HandleFunc("/webhook", handleWebhook).Methods("POST")
+
+	http.ListenAndServe(":8000", router)
+}
+
+func setTelegramWebhook() {
+	setWebhookReqBody := map[string]interface{}{
+		"url": os.Getenv("botDomain"),
+	}
+	sendTelegramRequest(setWebhookReqBody, "setWebhook")
+}
+
+func sendTelegramRequest(reqBody map[string]interface{}, endPoint string) {
+	client := &http.Client{}
+	reqBodyJSON, _ := json.Marshal(reqBody)
+	request, _ := http.NewRequest("POST", "https://api.telegram.org/bot"+telegramBotToken+"/"+endPoint, bytes.NewBuffer(reqBodyJSON))
+	request.Header.Set("Content-Type", "application/json")
+	sendMessageResp, _ := client.Do(request)
+	defer sendMessageResp.Body.Close()
 }
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +109,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	text := ""
 	if strings.ToUpper(update.Message.Text) == "/START" {
 		text = "Welcome, You can start chatting with Haj Jipit."
-	}else if strings.ToUpper(update.Message.Text) == "/CLEAR" {
+	} else if strings.ToUpper(update.Message.Text) == "/CLEAR" {
 		redisClient.Del(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID))
 		text = "Conversation cleared."
 	} else {
@@ -91,15 +120,14 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 		openAIResponse := callOpenAiApi(messages)
 
-		if len(openAIResponse.Choices)>0 {
+		if len(openAIResponse.Choices) > 0 {
 			text = openAIResponse.Choices[0].Message.Content
 			messageJson, _ := json.Marshal(newMessage)
 			replyJson, _ := json.Marshal(openAIResponse.Choices[0].Message)
 			redisClient.RPush(ctx, "userHistory:"+strconv.Itoa(update.Message.Chat.ID), messageJson, replyJson)
-		}else{
+		} else {
 			text = "There was a problem processing your message. Maybe it's because of number of tokens. Try to /CLEAR your conversation history."
 		}
-
 
 	}
 	sendTelegramMessage(update.Message.Chat.ID, text)
@@ -121,7 +149,7 @@ func callOpenAiApi(messages []Message) OpenAiResponse {
 	openAIResp, _ := client.Do(openAIReq)
 	openAIRespBody, _ := ioutil.ReadAll(openAIResp.Body)
 	defer openAIResp.Body.Close()
-    log.Printf("openAi response %+v",string(openAIRespBody))
+	log.Printf("openAi response %+v", string(openAIRespBody))
 
 	var openAIResponse OpenAiResponse
 	json.Unmarshal(openAIRespBody, &openAIResponse)
@@ -130,37 +158,21 @@ func callOpenAiApi(messages []Message) OpenAiResponse {
 
 }
 
+func getMessagesFromRedis(chatID int) []Message {
+	list := redisClient.LRange(ctx, "userHistory:"+strconv.Itoa(chatID), 0, -1)
+	var messages []Message
+	for _, value := range list.Val() {
+		var message Message
+		json.Unmarshal([]byte(value), &message)
+		messages = append(messages, message)
+	}
+	return messages
+}
+
 func sendTelegramMessage(chatID int, text string) {
-	client := &http.Client{}
 	sendMessageReqBody := map[string]interface{}{
 		"chat_id": chatID,
 		"text":    text,
 	}
-	sendMessageReqBodyJSON, _ := json.Marshal(sendMessageReqBody)
-	sendMessageReq, _ := http.NewRequest("POST", "https://api.telegram.org/bot"+telegramBotToken+"/sendMessage", bytes.NewBuffer(sendMessageReqBodyJSON))
-	sendMessageReq.Header.Set("Content-Type", "application/json")
-	sendMessageResp, _ := client.Do(sendMessageReq)
-	defer sendMessageResp.Body.Close()
-}
-
-func main() {
-
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Some error occured on reading . env file. Err: %s", err)
-	}
-
-	openAiToken = os.Getenv("openAiToken")
-	telegramBotToken = os.Getenv("telegramBotToken")
-
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     "redis:6379",
-		Password: os.Getenv("redisPassword"),
-		DB:       0,
-	})
-
-	router := mux.NewRouter()
-	router.HandleFunc("/webhook", handleWebhook).Methods("POST")
-
-	http.ListenAndServe(":8000", router)
+	sendTelegramRequest(sendMessageReqBody, "sendMessage")
 }

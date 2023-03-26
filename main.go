@@ -90,6 +90,7 @@ func setTelegramWebhook() {
 func sendTelegramRequest(reqBody map[string]interface{}, endPoint string) {
 	client := &http.Client{}
 	reqBodyJSON, _ := json.Marshal(reqBody)
+	log.Println(string(reqBodyJSON))
 	request, _ := http.NewRequest("POST", "https://api.telegram.org/bot"+telegramBotToken+"/"+endPoint, bytes.NewBuffer(reqBodyJSON))
 	request.Header.Set("Content-Type", "application/json")
 	sendMessageResp, _ := client.Do(request)

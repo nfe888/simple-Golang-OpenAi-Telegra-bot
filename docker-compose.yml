@@ -6,7 +6,7 @@ services:
     - telegramBotToken=${telegramBotToken}
     - openAiToken=${openAiToken}
     ports:
-    - "8000:8000"
+    - "${golangPort}:${golangPort}"
     networks:
     - gptbot-network
 
